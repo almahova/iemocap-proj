@@ -27,8 +27,9 @@ The goal of this project is to build a multiclass emotion recognition model from
 ## Project Structure
 
 ```
+iemocap_modelling.ipynb      # Modelling notebook (Wav2Vec2, LOSO-CV)
 notebooks/
-└── iemocap-analysis.ipynb   # Main analysis notebook
+└── iemocap-analysis.ipynb   # EDA notebook
 docs/
 └── Projects_3rd_year_course_booklet.pdf
 ```
@@ -49,7 +50,12 @@ docs/
 - Session type analysis (improvised vs. scripted)
 - Acoustic feature comparison by gender
 
+### 🔄 In Progress — Modelling
+- Wav2Vec2 (`facebook/wav2vec2-base`) fine-tuned end-to-end on raw audio
+- 3-class emotion grouping: Negative · Positive · Neutral
+- Leave-One-Session-Out cross-validation (5 folds, fully speaker-independent)
+- Evaluation: Macro F1 per fold + aggregated confusion matrix
+
 ### 🔜 Up Next
-- Feature engineering
-- Model training and evaluation
-- Speaker-independent cross-validation (GroupKFold)
+- Model evaluation and results analysis
+- Report writing
