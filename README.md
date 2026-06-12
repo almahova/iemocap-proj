@@ -8,7 +8,7 @@
 
 ## Overview
 
-The goal of this project is to build a multiclass emotion recognition model from speech data. Given an audio utterance, the model should predict the speaker's emotional state from one of 10 emotion categories.
+The goal of this project is to build a multimodal emotion recognition system from speech data. We group the original 10 IEMOCAP emotion labels into 3 classes — **Negative**, **Positive**, and **Neutral** — and compare text-only, audio-only, and multimodal fusion approaches.
 
 ---
 
@@ -27,19 +27,19 @@ The goal of this project is to build a multiclass emotion recognition model from
 ## Project Structure
 
 ```
-iemocap_modelling.ipynb        # Original modelling notebook (Wav2Vec2, LOSO-CV)
 notebooks/
 ├── iemocap-analysis.ipynb     # EDA notebook
 ├── text_classification.ipynb  # RoBERTa text-only classifier
-├── audio_classification.ipynb # Wav2Vec2 audio-only classifier (LOSO-CV)
+├── audio_classification.ipynb # Wav2Vec2 audio-only classifier
 ├── intermediate_fusion.ipynb  # RoBERTa + Wav2Vec2 intermediate (feature-level) fusion
 └── late_fusion.ipynb          # RoBERTa + Wav2Vec2 late (decision-level) fusion
 docs/
 └── Projects_3rd_year_course_booklet.pdf
 ```
 
-All modelling notebooks share the same setup:
+All modelling notebooks share the same evaluation setup:
 - 3-class emotion grouping: **Negative · Positive · Neutral**
+- Train on Sessions 1–4, test on Session 5 (fully speaker-independent)
 - Class imbalance handled with inverse-frequency class weights in the loss
 - Early stopping (patience = 3 epochs on val Macro F1)
 - Reported metrics: accuracy, Macro F1-Score, confusion matrix
@@ -48,7 +48,7 @@ All modelling notebooks share the same setup:
 
 ## Progress
 
-### Exploratory Data Analysis
+### Exploratory Data Analysis ✓
 - Dataset overview: shape, types, missing values
 - Emotion class distribution and class imbalance analysis
 - Outlier detection across all numerical features
@@ -60,24 +60,28 @@ All modelling notebooks share the same setup:
 - Session type analysis (improvised vs. scripted)
 - Acoustic feature comparison by gender
 
-### Text Classification (RoBERTa)
+### Text Classification (RoBERTa) ✓
 - `roberta-base` fine-tuned on the `transcription` column
-- 80/10/10 stratified train/val/test split
-- Best val Macro F1 reached at epoch 4, early stopped at epoch 7
-- **Test results:** Accuracy **0.7052**, Macro F1 **0.6648**
+- Train on Sessions 1–4, held-out test on Session 5
+- Early stopping on validation Macro F1 (patience = 3)
 
-### In Progress: Audio Classification (Wav2Vec2)
+### Audio Classification (Wav2Vec2) ✓
 - `facebook/wav2vec2-base` fine-tuned end-to-end on raw audio
-- Leave-One-Session-Out cross-validation (5 folds, fully speaker-independent)
-- Evaluation: Macro F1 per fold + aggregated confusion matrix
-- Currently running fold-by-fold training
+- Train on Sessions 1–4, held-out test on Session 5 (speaker-independent)
+- Feature encoder frozen; linear warmup + decay scheduler
+- **Test results (Ses05): Macro F1 0.6324**
 
-### In Progress: Multimodal Fusion
-- **Intermediate fusion**: combine RoBERTa text embeddings with Wav2Vec2 audio embeddings before classification: data loading/splitting set up, training pending
-- **Late fusion**: combine the independent text and audio model predictions at the decision level: notebook scaffolded, not yet implemented
+### Late Fusion ✓
+- Weighted sum of text and audio logits (α\_text = 0.65, α\_audio = 0.35)
+- Evaluated on Session 5 test set
+- **Test results (Ses05): Macro F1 0.8173**
+
+### In Progress: Intermediate Fusion
+- Concatenates RoBERTa and Wav2Vec2 hidden-state embeddings before a shared MLP head
+- Differential learning rates: 1e-5 for pretrained encoders, 1e-4 for fusion head
+- Training pending
 
 ### Up Next
-- Finish audio classification LOSO-CV run
-- Train and evaluate intermediate and late fusion models
-- Compare all approaches (text-only, audio-only, intermediate fusion, late fusion)
+- Run intermediate fusion training and evaluation
+- Compare all four approaches (text-only, audio-only, late fusion, intermediate fusion)
 - Report writing
