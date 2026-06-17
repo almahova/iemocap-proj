@@ -34,6 +34,7 @@ notebooks/
 ├── intermediate_fusion.ipynb  # RoBERTa + Wav2Vec2 intermediate (feature-level) fusion
 └── late_fusion.ipynb          # RoBERTa + Wav2Vec2 late (decision-level) fusion
 docs/
+├── report.md                  # Full project report
 └── Projects_3rd_year_course_booklet.pdf
 ```
 
@@ -43,6 +44,19 @@ All modelling notebooks share the same evaluation setup:
 - Class imbalance handled with inverse-frequency class weights in the loss
 - Early stopping (patience = 3 epochs on val Macro F1)
 - Reported metrics: accuracy, Macro F1-Score, confusion matrix
+
+---
+
+## Results Summary
+
+| Model | Accuracy | Macro F1 | Weighted F1 |
+|-------|----------|----------|-------------|
+| RoBERTa (text-only) | 0.6793 | 0.6519 | 0.6900 |
+| Wav2Vec2 (audio-only) | 0.6779 | 0.6324 | 0.6799 |
+| Late Fusion (α=0.65/0.35) | 0.8392 | 0.8173 | 0.8431 |
+| Intermediate Fusion | — | — | — |
+
+All models evaluated on Session 5 (n=2,170 utterances, fully speaker-independent).
 
 ---
 
@@ -58,30 +72,31 @@ All modelling notebooks share the same evaluation setup:
 - Correlation analysis of numerical features
 - Dimensional emotion profiles (activation, valence, dominance per class)
 - Session type analysis (improvised vs. scripted)
-- Acoustic feature comparison by gender
 
 ### Text Classification (RoBERTa) ✓
 - `roberta-base` fine-tuned on the `transcription` column
-- Train on Sessions 1–4, held-out test on Session 5
-- Early stopping on validation Macro F1 (patience = 3)
+- Train on Sessions 1–4, held-out test on Session 5 (speaker-independent)
+- Early stopping on validation Macro F1 (patience = 3), best at epoch 4 of 7
+- **Test results — Accuracy: 0.6793 | Macro F1: 0.6519**
 
 ### Audio Classification (Wav2Vec2) ✓
-- `facebook/wav2vec2-base` fine-tuned end-to-end on raw audio
+- `facebook/wav2vec2-base` fine-tuned on raw 16kHz waveforms
+- Convolutional feature encoder frozen; transformer layers fine-tuned
 - Train on Sessions 1–4, held-out test on Session 5 (speaker-independent)
-- Feature encoder frozen; linear warmup + decay scheduler
-- **Test results (Ses05): Macro F1 0.6324**
+- **Test results — Accuracy: 0.6779 | Macro F1: 0.6324**
 
 ### Late Fusion ✓
-- Weighted sum of text and audio logits (α\_text = 0.65, α\_audio = 0.35)
-- Evaluated on Session 5 test set
-- **Test results (Ses05): Macro F1 0.8173**
+- Weighted combination of text and audio output logits: α\_text = 0.65, α\_audio = 0.35
+- No additional training — uses checkpoints from the two unimodal models
+- **Test results — Accuracy: 0.8392 | Macro F1: 0.8173** (+0.17 over text-only)
 
-### In Progress: Intermediate Fusion
-- Concatenates RoBERTa and Wav2Vec2 hidden-state embeddings before a shared MLP head
+### Intermediate Fusion ⏳ In Progress
+- Concatenates mean-pooled RoBERTa and Wav2Vec2 hidden states → 1536-dim → MLP head (256 hidden, dropout 0.3)
 - Differential learning rates: 1e-5 for pretrained encoders, 1e-4 for fusion head
-- Training pending
+- Initialized from unimodal checkpoints; joint end-to-end fine-tuning
+- Training started — estimated ~9 hours on local hardware. Results pending.
 
 ### Up Next
-- Run intermediate fusion training and evaluation
-- Compare all four approaches (text-only, audio-only, late fusion, intermediate fusion)
-- Report writing
+- Complete intermediate fusion training
+- Final results comparison across all four models
+- Export report to PDF
