@@ -120,6 +120,14 @@ The resulting weighted cross-entropy loss is:
 
 $$\mathcal{L} = -\sum_{c=1}^{K} w_c \cdot y_c \cdot \log \hat{p}_c$$
 
+### 2.5 Ground-Truth Refinement: Sum-then-Argmax
+
+The 3-class label used throughout this report (§2.2) is derived from `major_emotion`, IEMOCAP's pre-computed argmax over the 10 raw emotion categories, which is then mapped into Negative/Positive/Neutral. This is a *hard-label-then-group* procedure: the majority vote is taken **before** grouping, so an utterance whose annotator agreement is split across emotions that map to *different* groups (e.g., 40% angry/Negative, 35% frustrated/Negative, 25% surprise/Neutral) is grouped using only the single mode (`angry` → Negative), discarding the 25% of annotator mass assigned to a different group. Ties with no clear single-emotion majority are assigned the catch-all label `other`, which always maps to Neutral regardless of where the actual probability mass sits.
+
+To check that this construction does not bias our evaluation, we additionally derive a **Sum-then-Argmax** ground truth: the 9 raw soft-label probabilities (`frustrated, angry, sad, disgust, excited, fear, neutral, surprise, happy` — the fraction of annotators selecting each emotion, which sum to 1 per utterance) are first summed within each of the three groups, and the group label is taken as the argmax of the resulting 3-way distribution. The maximum of this grouped distribution, which we call the **human-consensus score** ($c_i \in (\tfrac{1}{3}, 1]$), measures how much annotator agreement exists for utterance $i$ once grouped — a score near 1 means annotators overwhelmingly agreed on the group, while a score near $\tfrac13$ means annotators were split roughly evenly across all three groups.
+
+We use this corrected label and consensus score for two purposes: (1) as a robustness check on the originally-reported Macro F1 (§9.4), by comparing predictions already produced by each trained model against both the original and corrected ground truth, with no retraining; and (2) to stratify model performance by annotator agreement via a **Consensus Tier Table**, binning utterances into Low ($c_i < 0.5$), Medium ($0.5 \le c_i \le 0.75$), and High ($c_i > 0.75$) consensus tiers. We do not replace Macro F1 itself with a probability-weighted metric — F1 remains a hard-label metric computed against the corrected ground truth, preserving comparability with standard SER evaluation practice and with the headline results in §8.
+
 ---
 
 ## 3. Phase 1 — Exploratory Data Analysis
@@ -395,6 +403,8 @@ Due to the larger model size and smaller batch size, each epoch requires approxi
 2. Have `~/Downloads/audio_best_model.pt` (361 MB) — the Wav2Vec2 checkpoint from Phase 3 (available from team Google Drive)
 3. Run `PYTORCH_ENABLE_MPS_FALLBACK=1 python3 -m nbconvert --to notebook --execute --inplace --ExecutePreprocessor.timeout=21600 notebooks/intermediate_fusion.ipynb` from the repo root
 
+Because training has not completed, there is no checkpoint to re-evaluate yet. Intermediate fusion is therefore also excluded from the Sum-then-Argmax ground-truth correction and Consensus Tier Table introduced in §2.5 and §9.4 — both the original and corrected metrics remain **pending** for this model.
+
 ---
 
 ## 8. Summary of Results
@@ -436,6 +446,40 @@ Both text and audio models struggle with Neutral precision (0.39 and 0.45 respec
 ### 9.3 Why Use Macro F1 as the Primary Metric?
 
 Accuracy is a misleading metric when classes are imbalanced. With 55% Negative samples, a model that always predicts "Negative" achieves 55% accuracy but is completely useless. Macro F1 computes F1 separately for each class and averages them with equal weight — so the minority class (Neutral, 18% of data) contributes as much to the final score as the majority class. This makes it the appropriate metric for evaluating generalization across all three emotion groups.
+
+### 9.4 Model Errors and Label Ambiguity: Validating Against Human Consensus
+
+§9.2 showed that all models struggle most on Neutral — the class IEMOCAP defines residually rather than by positive acoustic or lexical evidence. §2.5 introduced a complementary hypothesis: if model errors concentrate on utterances where human annotators themselves disagreed, then part of what Macro F1 counts as "error" reflects label ambiguity rather than model weakness, and our results should be read against an empirical, consensus-driven ceiling rather than an assumed 100% ceiling.
+
+We test this directly with the **Consensus Tier Table**, produced by `corrected_eval_report()` (added to `text_classification.ipynb`, `audio_classification.ipynb`, and `late_fusion.ipynb`), which stratifies the Session 5 test set by the human-consensus score $c_i$ (§2.5) and reports Accuracy and Macro F1 within each tier, for each completed model:
+
+| Model | Tier | N | Accuracy | Macro F1 |
+|-------|------|---|----------|----------|
+| Text-only | Low (<0.5) | `[TODO]` | `[TODO]` | `[TODO]` |
+| Text-only | Medium (0.5–0.75) | `[TODO]` | `[TODO]` | `[TODO]` |
+| Text-only | High (>0.75) | `[TODO]` | `[TODO]` | `[TODO]` |
+| Audio-only | Low (<0.5) | `[TODO]` | `[TODO]` | `[TODO]` |
+| Audio-only | Medium (0.5–0.75) | `[TODO]` | `[TODO]` | `[TODO]` |
+| Audio-only | High (>0.75) | `[TODO]` | `[TODO]` | `[TODO]` |
+| Late Fusion | Low (<0.5) | `[TODO]` | `[TODO]` | `[TODO]` |
+| Late Fusion | Medium (0.5–0.75) | `[TODO]` | `[TODO]` | `[TODO]` |
+| Late Fusion | High (>0.75) | `[TODO]` | `[TODO]` | `[TODO]` |
+
+> **`[TODO — not yet run]`** This table has not been populated with real numbers. The notebooks were edited to compute it but have not been executed (no GPU / no Drive checkpoints available in the environment that made this edit) — run the new evaluation cells in Colab and paste the printed values in before submitting the report. Do not estimate or fill these in by hand.
+
+We expect — and will confirm once the cells above are run — that Accuracy and Macro F1 rise monotonically from the Low to the High consensus tier across all three models. If so, this would indicate the models are not failing randomly: they converge toward the same utterances that were intrinsically ambiguous to human raters.
+
+We also use `corrected_eval_report()` to re-score each model's existing predictions against the Sum-then-Argmax ground truth (§2.5) instead of the original `major_emotion`-derived label, with no retraining:
+
+| Model | Old Macro F1 (major_emotion GT) | Corrected Macro F1 (Sum-then-Argmax GT) | Δ | Labels flipped |
+|-------|-----|-----|---|---|
+| Text-only | 0.6519 | `[TODO]` | `[TODO]` | `[TODO]` |
+| Audio-only | 0.6324 | `[TODO]` | `[TODO]` | `[TODO]` |
+| Late Fusion | 0.8173 | `[TODO]` | `[TODO]` | `[TODO]` |
+
+A small Δ would confirm the headline numbers in §8 are not an artifact of the labeling shortcut in §2.5; a positive Δ would indicate some previously-counted errors were disagreements with a mislabeled reference rather than genuine model failures. Either reading is consistent with — and should be interpreted alongside — the tier table above.
+
+**Caveat:** this analysis approximates a human-accuracy ceiling using aggregated soft labels rather than raw per-annotator votes (not exposed by this HuggingFace release), so $c_i$ is an upper-bound proxy for annotator agreement rather than a true leave-one-rater-out accuracy estimate. Intermediate fusion is excluded from both tables above — see §7.5.
 
 ---
 
