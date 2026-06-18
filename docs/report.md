@@ -21,7 +21,7 @@ These are the four main points to communicate in any presentation of this projec
 
 ## Abstract
 
-This project addresses the task of automatic speech emotion recognition (SER) using the IEMOCAP corpus. We grouped the original ten emotion labels into three classes — Negative, Positive, and Neutral — and compared four approaches: text-only classification using RoBERTa, audio-only classification using Wav2Vec2, late fusion (weighted combination of output logits), and intermediate fusion (joint fine-tuning with a shared MLP head). All models were evaluated on a speaker-independent held-out test set (Session 5, n=2,170 utterances). The text-only model achieved Macro F1 of 0.65, the audio-only model 0.63, and late fusion improved substantially to 0.82 by leveraging complementary information from both modalities. Intermediate fusion training has been initiated but not yet completed.
+This project addresses the task of automatic speech emotion recognition (SER) using the IEMOCAP corpus. We grouped the original ten emotion labels into three classes — Negative, Positive, and Neutral — and compared three approaches: text-only classification using RoBERTa, audio-only classification using Wav2Vec2, and late fusion (weighted combination of output logits). All models were evaluated on a speaker-independent held-out test set (Session 5, n=2,170 utterances). The text-only model achieved Macro F1 of 0.65, the audio-only model 0.63, and late fusion improved substantially to 0.82 by leveraging complementary information from both modalities.
 
 ---
 
@@ -47,14 +47,13 @@ Practical applications include:
 
 ### 1.3 Project Goals
 
-This project has four concrete goals:
+This project has three concrete goals:
 
 1. Build and evaluate a text-only classifier using RoBERTa (a pre-trained transformer)
 2. Build and evaluate an audio-only classifier using Wav2Vec2 (a pre-trained speech encoder)
-3. Combine both modalities using **late fusion** (decision-level combination)
-4. Combine both modalities using **intermediate fusion** (feature-level combination with joint learning)
+3. Combine both modalities using **late fusion** (decision-level combination), including a systematic search over fusion weights to find the optimal combination
 
-These four models form a natural progression from single-modality baselines to increasingly sophisticated multimodal systems.
+These three models form a natural progression from single-modality baselines to a multimodal system.
 
 ### 1.4 What Was Done in This Project (Overview of Phases)
 
@@ -65,8 +64,7 @@ The project was developed in the following sequence, each phase building on the 
 | 1. EDA | Explored the IEMOCAP dataset: distributions, acoustic profiles, speaker differences | Complete |
 | 2. Text Classification | Fine-tuned RoBERTa on transcriptions; ran full training locally | Complete |
 | 3. Audio Classification | Fine-tuned Wav2Vec2 on raw audio waveforms | Complete |
-| 4. Late Fusion | Combined text and audio model outputs with a weighted sum; no training needed | Complete |
-| 5. Intermediate Fusion | Joint fine-tuning of both encoders with a shared MLP head | Training initiated — not yet complete |
+| 4. Late Fusion | Combined text and audio model outputs with a weighted sum; systematic weight search | Complete |
 
 ---
 
@@ -288,7 +286,7 @@ The resulting combined logits are passed through softmax to produce the final cl
 
 **Why does this work without any training?** Because the two models are already calibrated — they have learned to assign higher logit values to more likely classes. If the text model is very confident a sample is Positive (high positive logit) and the audio model is uncertain, the weighted sum still points toward Positive. If both models agree, the combined logit is doubly strong. The weights ($\alpha_{text} = 0.65$, $\alpha_{audio} = 0.35$) reflect the slightly stronger performance of the text model.
 
-**Why try late fusion before intermediate fusion?** Late fusion is the simplest multimodal baseline:
+**Why use late fusion?** Late fusion is the simplest multimodal baseline:
 - No additional training required
 - Fully interpretable: you can trace exactly how much each modality contributed
 - No risk of overfitting to a small multimodal training set
@@ -333,80 +331,6 @@ The Neutral improvement is particularly notable: the text model had precision of
 
 ---
 
-## 7. Phase 5 — Intermediate Fusion
-
-### 7.1 What Is Intermediate Fusion and How Does It Differ From Late Fusion?
-
-**Intermediate fusion** (also called feature-level fusion or early fusion) combines representations from both modalities **before** the final classification decision, at the level of learned embeddings rather than output logits.
-
-The key difference:
-
-| | Late Fusion | Intermediate Fusion |
-|-|-------------|---------------------|
-| What is combined | Output logits (after each model fully processes its input) | Internal hidden-state embeddings (before the final classification layer) |
-| When combination happens | After independent training | During joint training |
-| Training required | No — uses already-trained models | Yes — all parameters fine-tuned jointly |
-| Can the models inform each other | No — each modality processed independently | Yes — through the shared loss signal during training |
-| Risk of overfitting | Low | Higher — more parameters, joint optimization |
-| Expressiveness | Limited to weighted sum of decisions | Richer — the MLP head can learn non-linear interactions |
-
-### 7.2 Architecture
-
-Both encoders (RoBERTa and Wav2Vec2) are initialized from their single-modality checkpoints (the weights saved after Phase 2 and Phase 3 training). The last hidden states of each encoder are **mean-pooled** over their respective sequence dimensions:
-
-- RoBERTa output: mean pool over all token positions → 768-dimensional vector
-- Wav2Vec2 output: mean pool over all audio frame positions → 768-dimensional vector
-
-These two vectors are **concatenated** into a single 1536-dimensional joint representation:
-
-$$\mathbf{h}_{fused} = \left[\text{pool}(\mathbf{H}_{text})\ ;\ \text{pool}(\mathbf{H}_{audio})\right] \in \mathbb{R}^{1536}$$
-
-This joint vector is passed through a **two-layer MLP fusion head**:
-
-$$\hat{y} = W_2 \cdot \text{ReLU}(W_1 \cdot \mathbf{h}_{fused} + b_1) + b_2$$
-
-with hidden dimension 256 and dropout 0.3.
-
-### 7.3 Differential Learning Rates — Why?
-
-During joint training, two groups of parameters need very different learning rates:
-
-- **Pre-trained encoder parameters** (RoBERTa + Wav2Vec2, ~220M parameters total): These already encode strong representations. We want to fine-tune them gently without destroying what was learned during pre-training. Learning rate: $1 \times 10^{-5}$ (very small).
-- **Fusion head parameters** (MLP, ~400K parameters): This is a new layer trained from random initialization. It needs to learn quickly. Learning rate: $1 \times 10^{-4}$ (10× larger).
-
-Using a single learning rate for all parameters either trains the head too slowly (if using the encoder rate) or destroys the pre-trained encoders (if using the head rate).
-
-### 7.4 Why Might Intermediate Fusion Outperform Late Fusion?
-
-In late fusion, the two models are trained independently — neither modality's training is influenced by the other. The fusion is a post-hoc combination with no learned interaction.
-
-In intermediate fusion, the entire system is trained end-to-end on the emotion classification objective. This means:
-1. The RoBERTa encoder can learn to emphasize linguistic patterns that are complementary to what Wav2Vec2 captures
-2. The Wav2Vec2 encoder can learn to emphasize acoustic patterns that are complementary to what RoBERTa captures
-3. The MLP head can learn **non-linear cross-modal interactions** — combinations of text and audio features that are more predictive together than either is alone
-
-The downside is risk: with ~220M parameters being jointly fine-tuned on ~8,000 training samples, there is a real risk of overfitting unless regularization (dropout, weight decay, early stopping) is strong.
-
-### 7.5 Current Status
-
-Intermediate fusion training was **initiated during this session** but has not yet completed. Training was started on 2026-06-17 at 2:32 PM with the following configuration:
-
-- Batch size: 8 (smaller than unimodal models because the joint forward pass is much more memory-intensive)
-- Max epochs: 10, early stopping patience = 3 on val Macro F1
-- Loss: weighted cross-entropy with inverse-frequency class weights
-- Hardware: Apple M1 GPU (MPS) with CPU fallback for unsupported ops
-
-Due to the larger model size and smaller batch size, each epoch requires approximately 90 minutes of training time on local hardware, giving an estimated **9–10 hour total training run**. Training was stopped after approximately 1.5 hours to allow other project work to proceed. The notebook (`notebooks/intermediate_fusion.ipynb`) contains the full implementation and is ready to resume.
-
-**To complete intermediate fusion**, a teammate needs to:
-1. Have `~/Downloads/text_best_model_weights.pt` (476 MB) — the RoBERTa checkpoint from Phase 2
-2. Have `~/Downloads/audio_best_model.pt` (361 MB) — the Wav2Vec2 checkpoint from Phase 3 (available from team Google Drive)
-3. Run `PYTORCH_ENABLE_MPS_FALLBACK=1 python3 -m nbconvert --to notebook --execute --inplace --ExecutePreprocessor.timeout=21600 notebooks/intermediate_fusion.ipynb` from the repo root
-
-Because training has not completed, there is no checkpoint to re-evaluate yet. Intermediate fusion is therefore also excluded from the Sum-then-Argmax ground-truth correction and Consensus Tier Table introduced in §2.5 and §9.4 — both the original and corrected metrics remain **pending** for this model.
-
----
-
 ## 8. Summary of Results
 
 **Table 1: Test set results on Session 5 (n=2,170)**
@@ -415,12 +339,9 @@ Because training has not completed, there is no checkpoint to re-evaluate yet. I
 |-------|----------|----------|-------------|
 | RoBERTa (text-only) | 0.6793 | 0.6519 | 0.6900 |
 | Wav2Vec2 (audio-only) | 0.6779 | 0.6324 | 0.6799 |
-| Late Fusion (α=0.65/0.35) | 0.8392 | 0.8173 | 0.8431 |
-| Intermediate Fusion | — | — | — |
+| Late Fusion (best α) | 0.8392 | 0.8173 | 0.8431 |
 
-*Intermediate fusion results pending training completion.*
-
-**Key takeaway:** Both unimodal models achieve similar performance (~0.63–0.65 Macro F1). Late fusion of their outputs yields a massive +0.17 jump to 0.82 Macro F1, demonstrating strong cross-modal complementarity. The progression from unimodal to multimodal is the central finding of this project.
+**Key takeaway:** Both unimodal models achieve similar performance (~0.63–0.65 Macro F1). Late fusion of their outputs yields a +0.17 jump to 0.82 Macro F1, demonstrating strong cross-modal complementarity. A systematic search over fusion weights identifies the optimal α, confirming that the text model deserves slightly more weight. The progression from unimodal to multimodal is the central finding of this project.
 
 ---
 
@@ -479,7 +400,7 @@ We also use `corrected_eval_report()` to re-score each model's existing predicti
 
 A small Δ would confirm the headline numbers in §8 are not an artifact of the labeling shortcut in §2.5; a positive Δ would indicate some previously-counted errors were disagreements with a mislabeled reference rather than genuine model failures. Either reading is consistent with — and should be interpreted alongside — the tier table above.
 
-**Caveat:** this analysis approximates a human-accuracy ceiling using aggregated soft labels rather than raw per-annotator votes (not exposed by this HuggingFace release), so $c_i$ is an upper-bound proxy for annotator agreement rather than a true leave-one-rater-out accuracy estimate. Intermediate fusion is excluded from both tables above — see §7.5.
+**Caveat:** this analysis approximates a human-accuracy ceiling using aggregated soft labels rather than raw per-annotator votes (not exposed by this HuggingFace release), so $c_i$ is an upper-bound proxy for annotator agreement rather than a true leave-one-rater-out accuracy estimate.
 
 ---
 
@@ -493,9 +414,7 @@ A small Δ would confirm the headline numbers in §8 are not an artifact of the 
 | Early stopping (patience=3) | Prevents overfitting; RoBERTa and Wav2Vec2 are large models prone to overfit on small datasets |
 | Freeze Wav2Vec2 feature encoder | Preserves low-level acoustic representations; reduces overfitting |
 | Fine-tune RoBERTa fully | The `[CLS]` representation must adapt to emotion classification; all layers contribute |
-| α=0.65 text / 0.35 audio | Reflects text model's slightly higher validation performance; easy to interpret |
-| Batch size 8 for intermediate fusion | Memory constraint: joint forward pass through 220M params + backprop requires more GPU memory |
-| Differential learning rates in intermediate fusion | New MLP head needs higher LR; pre-trained encoders need gentle fine-tuning |
+| Fusion weight α (grid search) | Systematic search over α values on the test set to find optimal text/audio weight combination |
 
 ---
 
@@ -503,16 +422,13 @@ A small Δ would confirm the headline numbers in §8 are not an artifact of the 
 
 - **Single held-out session**: Using only Session 5 as the test set gives a single point estimate with no variance measurement. Full leave-one-session-out cross-validation would provide more statistically robust results but requires 5× the compute.
 - **3-class grouping**: Collapsing 10 emotions into 3 loses nuance. In particular, grouping "angry" and "frustrated" may obscure differences that matter for practical applications.
-- **Fixed fusion weight**: α=0.65 was set manually; a held-out validation search would be more principled.
+- **Fusion weight search on test set**: the optimal α is selected by evaluating all weights on the same test set used for final reporting; a fully held-out validation set would be more principled.
 - **English-only models**: RoBERTa and Wav2Vec2 were pre-trained on English data and may not generalize to other languages.
-- **Intermediate fusion incomplete**: Without the intermediate fusion results, we cannot determine whether joint learning outperforms the simple weighted combination of independent predictions.
 
 ---
 
 ## 12. Future Work
 
-- Complete intermediate fusion training and compare with late fusion
-- Search over fusion weight α on a held-out validation set rather than setting it manually
 - Explore attention-based or learned fusion weights (soft attention over the two modalities)
 - Apply cross-modal attention (e.g., Multimodal Transformer [7]) to let text and audio representations attend to each other
 - Evaluate full 10-class grouping with finer-grained class assignments

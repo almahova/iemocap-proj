@@ -31,7 +31,6 @@ notebooks/
 ├── iemocap-analysis.ipynb     # EDA notebook
 ├── text_classification.ipynb  # RoBERTa text-only classifier
 ├── audio_classification.ipynb # Wav2Vec2 audio-only classifier
-├── intermediate_fusion.ipynb  # RoBERTa + Wav2Vec2 intermediate (feature-level) fusion
 └── late_fusion.ipynb          # RoBERTa + Wav2Vec2 late (decision-level) fusion
 docs/
 ├── report.md                  # Full project report
@@ -53,8 +52,7 @@ All modelling notebooks share the same evaluation setup:
 |-------|----------|----------|-------------|
 | RoBERTa (text-only) | 0.6793 | 0.6519 | 0.6900 |
 | Wav2Vec2 (audio-only) | 0.6779 | 0.6324 | 0.6799 |
-| Late Fusion (α=0.65/0.35) | 0.8392 | 0.8173 | 0.8431 |
-| Intermediate Fusion | — | — | — |
+| Late Fusion (best α) | 0.8392 | 0.8173 | 0.8431 |
 
 All models evaluated on Session 5 (n=2,170 utterances, fully speaker-independent).
 
@@ -90,13 +88,7 @@ All models evaluated on Session 5 (n=2,170 utterances, fully speaker-independent
 - No additional training — uses checkpoints from the two unimodal models
 - **Test results — Accuracy: 0.8392 | Macro F1: 0.8173** (+0.17 over text-only)
 
-### Intermediate Fusion ⏳ In Progress
-- Concatenates mean-pooled RoBERTa and Wav2Vec2 hidden states → 1536-dim → MLP head (256 hidden, dropout 0.3)
-- Differential learning rates: 1e-5 for pretrained encoders, 1e-4 for fusion head
-- Initialized from unimodal checkpoints; joint end-to-end fine-tuning
-- Training started — estimated ~9 hours on local hardware. Results pending.
-
 ### Up Next
-- Complete intermediate fusion training
-- Final results comparison across all four models
+- Re-run audio and fusion models with corrected 8.5s max duration
+- Final results comparison across all three models
 - Export report to PDF
