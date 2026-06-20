@@ -239,7 +239,7 @@ Training ran for **7 epochs** before early stopping triggered (best val Macro F1
 
 ### 5.2 How the Audio Model Works
 
-Each audio waveform is resampled to 16,000 Hz and padded/truncated to exactly 4 seconds (64,000 samples), covering approximately the 90th percentile of IEMOCAP utterance durations. The waveform is passed through the convolutional feature encoder to produce a sequence of ~200 frame representations, then through the transformer encoder to produce contextualized representations. **Mean pooling** over all time steps collapses the sequence into a single 768-dimensional utterance vector. A classification head maps this to 3 class logits:
+Each audio waveform is resampled to 16,000 Hz and padded/truncated to exactly 8.5 seconds (136,000 samples), covering approximately the 90th percentile of IEMOCAP utterance durations. The waveform is passed through the convolutional feature encoder to produce a sequence of ~200 frame representations, then through the transformer encoder to produce contextualized representations. **Mean pooling** over all time steps collapses the sequence into a single 768-dimensional utterance vector. A classification head maps this to 3 class logits:
 
 $$\hat{y} = \text{softmax}(W_{cls} \cdot \text{pool}(H) + b)$$
 

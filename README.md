@@ -33,7 +33,9 @@ notebooks/
 ├── audio_classification.ipynb # Wav2Vec2 audio-only classifier
 └── late_fusion.ipynb          # RoBERTa + Wav2Vec2 late (decision-level) fusion
 docs/
-├── report.md                  # Full project report
+├── report.md                  # Full project report (Markdown)
+├── Final_Report.docx          # Final formatted report
+├── Final_Presentation.pptx    # Final presentation slides
 └── Projects_3rd_year_course_booklet.pdf
 ```
 
@@ -50,9 +52,9 @@ All modelling notebooks share the same evaluation setup:
 
 | Model | Accuracy | Macro F1 | Weighted F1 |
 |-------|----------|----------|-------------|
-| RoBERTa (text-only) | 0.6793 | 0.6519 | 0.6900 |
-| Wav2Vec2 (audio-only) | 0.6779 | 0.6324 | 0.6799 |
-| Late Fusion (best α) | 0.8392 | 0.8173 | 0.8431 |
+| RoBERTa (text-only) | 0.6793 | 0.6519 | 0.6948 |
+| Wav2Vec2 (audio-only) | 0.6880 | 0.6403 | 0.6874 |
+| Late Fusion (best α=0.60) | — | 0.7104 | — |
 
 All models evaluated on Session 5 (n=2,170 utterances, fully speaker-independent).
 
@@ -81,14 +83,14 @@ All models evaluated on Session 5 (n=2,170 utterances, fully speaker-independent
 - `facebook/wav2vec2-base` fine-tuned on raw 16kHz waveforms
 - Convolutional feature encoder frozen; transformer layers fine-tuned
 - Train on Sessions 1–4, held-out test on Session 5 (speaker-independent)
-- **Test results — Accuracy: 0.6779 | Macro F1: 0.6324**
+- **Test results — Accuracy: 0.6880 | Macro F1: 0.6403**
 
 ### Late Fusion ✓
-- Weighted combination of text and audio output logits: α\_text = 0.65, α\_audio = 0.35
+- Weighted combination of text and audio output logits; grid search over α from 0.0 to 1.0
 - No additional training — uses checkpoints from the two unimodal models
-- **Test results — Accuracy: 0.8392 | Macro F1: 0.8173** (+0.17 over text-only)
+- Best α\_text = 0.60, α\_audio = 0.40
+- **Test results — Macro F1: 0.7104** (+0.06 over text-only)
 
-### Up Next
-- Re-run audio and fusion models with corrected 8.5s max duration
-- Final results comparison across all three models
-- Export report to PDF
+### Final Report & Presentation ✓
+- Full written report: `docs/Final_Report.docx`
+- Presentation slides: `docs/Final_Presentation.pptx`
