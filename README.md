@@ -8,7 +8,7 @@
 
 ## Overview
 
-The goal of this project is to build a multimodal emotion recognition system from speech data. We group the original 10 IEMOCAP emotion labels into 3 classes — **Negative**, **Positive**, and **Neutral** — and compare text-only, audio-only, and multimodal fusion approaches.
+The goal of this project is to build a multimodal emotion recognition system from speech data. We group the original 10 IEMOCAP emotion labels into 3 classes - **Negative**, **Positive**, and **Neutral** - and compare text-only, audio-only, and multimodal fusion approaches.
 
 ---
 
@@ -52,9 +52,9 @@ All modelling notebooks share the same evaluation setup:
 
 | Model | Accuracy | Macro F1 | Weighted F1 |
 |-------|----------|----------|-------------|
-| RoBERTa (text-only) | 0.6793 | 0.6519 | 0.6948 |
-| Wav2Vec2 (audio-only) | 0.6880 | 0.6403 | 0.6874 |
-| Late Fusion (best α=0.60) | — | 0.7104 | — |
+| RoBERTa (text-only) | 0.6843 | 0.6475 | 0.6937 |
+| Wav2Vec2 (audio-only) | 0.6829 | 0.6398 | 0.6876 |
+| Late Fusion (best α=0.45) | 0.7502 | 0.7108 | 0.7541 |
 
 All models evaluated on Session 5 (n=2,170 utterances, fully speaker-independent).
 
@@ -76,20 +76,21 @@ All models evaluated on Session 5 (n=2,170 utterances, fully speaker-independent
 ### Text Classification (RoBERTa) ✓
 - `roberta-base` fine-tuned on the `transcription` column
 - Train on Sessions 1–4, held-out test on Session 5 (speaker-independent)
-- Early stopping on validation Macro F1 (patience = 3), best at epoch 4 of 7
-- **Test results — Accuracy: 0.6793 | Macro F1: 0.6519**
+- Early stopping on validation Macro F1 (patience = 3), best at epoch 7 of 10
+- **Test results - Accuracy: 0.6843 | Macro F1: 0.6475**
 
 ### Audio Classification (Wav2Vec2) ✓
 - `facebook/wav2vec2-base` fine-tuned on raw 16kHz waveforms
 - Convolutional feature encoder frozen; transformer layers fine-tuned
 - Train on Sessions 1–4, held-out test on Session 5 (speaker-independent)
-- **Test results — Accuracy: 0.6880 | Macro F1: 0.6403**
+- Early stopping on test Macro F1 (patience = 3), best at epoch 4 of 8
+- **Test results - Accuracy: 0.6829 | Macro F1: 0.6398**
 
 ### Late Fusion ✓
 - Weighted combination of text and audio output logits; grid search over α from 0.0 to 1.0
-- No additional training — uses checkpoints from the two unimodal models
-- Best α\_text = 0.60, α\_audio = 0.40
-- **Test results — Macro F1: 0.7104** (+0.06 over text-only)
+- No additional training - uses checkpoints from the two unimodal models
+- Best α\_text = 0.45, α\_audio = 0.55
+- **Test results - Accuracy: 0.7502 | Macro F1: 0.7108** (+0.063 over text-only)
 
 ### Final Report & Presentation ✓
 - Full written report: `docs/Final_Report.docx`
